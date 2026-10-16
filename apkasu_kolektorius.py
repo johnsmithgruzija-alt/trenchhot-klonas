@@ -84,12 +84,17 @@ PUMP_SVIEZI = int(os.environ.get("PUMP_SVIEZI", "4"))  # papildomai pagal last_t
 # per 2,2 s (= 27/min) GitHub'e 11 is 19 kvietimu grizo tusciais (2026-10-16),
 # todel tempas sumazintas iki 20/min. Nepavykusios monetos lieka eileje ir
 # permatuojamos kita cikla, bet tai veltui sugaistas ciklas.
-GT_RIBA    = int(os.environ.get("GT_RIBA", "15"))      # kiek GT kvietimu per cikla
-GT_PAUZE   = float(os.environ.get("GT_PAUZE", "3.0"))  # 15 x 3 s = 45 s, 20/min
+# Riba nebe kiekiu, o LAIKU. GitHub paleidzia ne kas 5 min., o kas 20-25 (jis taip
+# elgiasi su daznais tvarkarasciais), todel fiksuotas kiekis nespejo: 2026-10-16
+# ateidavo ~45 monetos per valanda, o 15 per paleidima duodavo tik ~36 - eile augo.
+# Dabar kiekvienas paleidimas dirba, kol pasibaigia CIKLO_RIBA, tad retesni paleidimai
+# automatiskai padaro daugiau. Tuscia eile - ciklas baigiasi pats anksciau.
+GT_RIBA    = int(os.environ.get("GT_RIBA", "200"))     # faktiskai neribojam
+GT_PAUZE   = float(os.environ.get("GT_PAUZE", "3.0"))  # 20 kvietimu/min (GT riba 30)
 DEX_BATCH  = 25
 TIMEOUT    = float(os.environ.get("TIMEOUT", "10"))
 TRIES      = int(os.environ.get("TRIES", "2"))
-CIKLO_RIBA = float(os.environ.get("CIKLO_RIBA", "200"))
+CIKLO_RIBA = float(os.environ.get("CIKLO_RIBA", "420"))  # 7 min.; GitHub darbui duota 12
 DIENU      = 30                     # kiek dienu rodo puslapis
 CIKLU_DIENA = 288                   # kiek ciklu per para prie --watch 5
 CIKLU_MIN  = 0.80                   # tiek ciklu dienai butina, kad diena skaitytusi pilna
