@@ -80,8 +80,12 @@ ISMESK_H   = 240.0                  # po tiek valandu moneta ismetam is busenos
 
 PUMP_PAGES = int(os.environ.get("PUMP_PAGES", "20"))   # 20 x 50 = 1000 (API riba)
 PUMP_SVIEZI = int(os.environ.get("PUMP_SVIEZI", "4"))  # papildomai pagal last_trade
-GT_RIBA    = int(os.environ.get("GT_RIBA", "20"))      # kiek GT kvietimu per cikla
-GT_PAUZE   = float(os.environ.get("GT_PAUZE", "2.2"))  # GT limitas 30/min
+# GT limitas 30/min IR i ji skaitosi net nepavykusios uzklausos. Su 20 kvietimu
+# per 2,2 s (= 27/min) GitHub'e 11 is 19 kvietimu grizo tusciais (2026-10-16),
+# todel tempas sumazintas iki 20/min. Nepavykusios monetos lieka eileje ir
+# permatuojamos kita cikla, bet tai veltui sugaistas ciklas.
+GT_RIBA    = int(os.environ.get("GT_RIBA", "15"))      # kiek GT kvietimu per cikla
+GT_PAUZE   = float(os.environ.get("GT_PAUZE", "3.0"))  # 15 x 3 s = 45 s, 20/min
 DEX_BATCH  = 25
 TIMEOUT    = float(os.environ.get("TIMEOUT", "10"))
 TRIES      = int(os.environ.get("TRIES", "2"))
