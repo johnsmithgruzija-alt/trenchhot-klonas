@@ -1,0 +1,64 @@
+name: apkasu kolektorius
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kolektorius
+  cancel-in-progress: false
+
+jobs:
+  rinkti:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Kodas
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: curl_cffi
+        run: pip install --quiet curl_cffi
+
+      - name: Atkuriam duomenis
+        run: |
+          mkdir -p duomenys
+          if git ls-remote --exit-code --heads origin duomenys >/dev/null 2>&1; then
+            git fetch --depth 1 origin duomenys
+            git archive FETCH_HEAD | tar -x -C duomenys
+            echo "duomenys atkurti:"
+            ls -la duomenys
+          else
+            echo "sakos duomenys dar nera - pirmas ciklas nuo nulio"
+          fi
+
+      - name: Ciklas
+        env:
+          APKASAI_DIR: ${{ github.workspace }}/duomenys
+        run: python3 -u apkasu_kolektorius.py
+
+      - name: Irasom duomenis atgal
+        run: |
+          cd duomenys
+          rm -rf .git
+          git init -q
+          git config user.email "actions@github.com"
+          git config user.name "apkasu kolektorius"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "niekas nepasikeite"
+            exit 0
+          fi
+          git commit -q -m "duomenys $(date -u +%FT%TZ)"
+          git push -q --force \
+            "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" \
+            HEAD:duomenys
+          echo "irasyta i saka duomenys"
