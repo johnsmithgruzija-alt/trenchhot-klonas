@@ -96,8 +96,11 @@ TIMEOUT    = float(os.environ.get("TIMEOUT", "10"))
 TRIES      = int(os.environ.get("TRIES", "2"))
 CIKLO_RIBA = float(os.environ.get("CIKLO_RIBA", "420"))  # 7 min.; GitHub darbui duota 12
 DIENU      = 30                     # kiek dienu rodo puslapis
-CIKLU_DIENA = 288                   # kiek ciklu per para prie --watch 5
-CIKLU_MIN  = 0.80                   # tiek ciklu dienai butina, kad diena skaitytusi pilna
+# RIBA ABSOLIUTI, ne procentas nuo 288. GitHub dazno tvarkarascio nesilaiko:
+# 2026-10-16 per 5 val. ivyko 12 paleidimu (~65 per para), o ne 288. Su sena salyga
+# (>=80% nuo 288) nei viena diena NIEKADA nebutu gavusi balo. 24 = vidutiniskai
+# bent kartas per valanda; maziau reiskia, kad rinkejas buvo sustojes.
+CIKLU_MIN_D = int(os.environ.get("CIKLU_MIN_D", "24"))
 TIEK_SPEJ_H = float(os.environ.get("TIEK_SPEJ_H", "36"))  # po tiek val. matuojam ir be dex tiekimo
 DIENOS_MIN = int(os.environ.get("DIENOS_MIN", "100"))                     # ir tiek graduavimu (tikra diena ~1000)
 SHRINK_K   = 20                     # plonos dienos traukiamos i menesio vidurki
@@ -476,9 +479,11 @@ def startas():
 def daryk_data(busena):
     """Suskaiciuoja data.json is istorijos + busenos."""
     eil = skaityk_istorija()
-    # busenos monetos, kurios jau turi 24 h matavima, irgi skaitosi
+    # Imam VISAS sekamas monetas, ne tik ismatuotas: kitaip dienos stulpelis rodo
+    # tik tai, ka spejom pamatuoti, ir sviežiausios dienos atrodo tuscios.
+    # Islaike/gyva dalys ir toliau skaiciuojamos tik is ismatuotu (zr. zemiau).
     for m, e in busena.items():
-        if e.get("gyva_24h") in (0, 1) and not e.get("baigta"):
+        if not e.get("sena") and not e.get("baigta"):
             eil.append(e)
 
     po_dienu = {}
@@ -544,7 +549,7 @@ def daryk_data(busena):
     def pilna_diena(k):
         if k < pirma_ok or not pasibaige(k):
             return False
-        return ciklai.get(k, 0) >= CIKLU_DIENA * CIKLU_MIN
+        return ciklai.get(k, 0) >= CIKLU_MIN_D
 
     pilnos = [d for d in dienos if d["n"] >= DIENOS_MIN and pilna_diena(d["data"])]
     for d in dienos:
