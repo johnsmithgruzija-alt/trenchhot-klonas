@@ -1,0 +1,68 @@
+name: modeliu skeneris
+
+on:
+  schedule:
+    - cron: "17 */4 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "skeneris/**"
+      - ".github/workflows/skeneris.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: skeneris
+  cancel-in-progress: false
+
+jobs:
+  skenuoti:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Kodas
+        uses: actions/checkout@v4
+
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Ankstesne busena
+        shell: bash
+        run: |
+          mkdir -p isvestis
+          if git ls-remote --exit-code --heads origin skeneris-duomenys >/dev/null 2>&1; then
+            git fetch --depth 1 origin skeneris-duomenys
+            git archive FETCH_HEAD | tar -x -C isvestis
+            echo "ankstesni duomenys atkurti"
+          else
+            echo "sakos skeneris-duomenys dar nera - pirmas paleidimas"
+          fi
+
+      - name: Skenavimas
+        shell: bash
+        run: node skeneris/skenuoti.js eksportas.json 2>&1 | tee isvestis/zurnalas.txt
+
+      - name: Puslapio duomenys
+        shell: bash
+        run: python3 skeneris/builder.py eksportas.json isvestis 2>&1 | tee -a isvestis/zurnalas.txt
+
+      - name: Irasom i saka skeneris-duomenys
+        if: always()
+        shell: bash
+        run: |
+          cd isvestis
+          echo "paleidimas $(date -u +%FT%TZ) ${{ job.status }}" >> zurnalas.txt
+          rm -rf .git
+          git init -q
+          git config user.email "actions@github.com"
+          git config user.name "modeliu skeneris"
+          git add -A
+          git commit -q -m "skenavimas $(date -u +%FT%TZ)" || exit 0
+          git push -q --force \
+            "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" \
+            HEAD:skeneris-duomenys
+          echo "irasyta i saka skeneris-duomenys"
