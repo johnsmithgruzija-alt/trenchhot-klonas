@@ -111,6 +111,7 @@ CSV_STULP = [
     "ath_pump", "ath_pump_laikas",
     "kaina_grad", "langas_ok", "z24_n", "mc_pikas_5m", "apyv_24h",
     "islaike_250k", "islaike_250k_v", "gyva_24h", "mc_24h",
+    "likv_24h", "mc_dex_24h", "likv_72h", "mc_dex_72h",
     "z72_n", "mc_pikas_15m",
     "l_250k", "l_500k", "l_1m", "l_5m",
     "lv_250k", "lv_500k", "lv_1m", "lv_5m",
@@ -250,6 +251,28 @@ def dex_pulai(mintai):
                 a, b = ankstesnis.get("sukurtas") or 0, yra.get("sukurtas") or 0
                 if yra["dex"] == "pumpswap" and (ankstesnis["dex"] != "pumpswap" or b < a):
                     out[base] = yra
+        time.sleep(0.25)
+    return out
+
+
+def dex_busena(mintai):
+    """{mint: (likvidumas, mc)} matavimo metu. APYVARTA KLASTOJAMA, LIKVIDUMAS NE:
+    2026-10-22 rasta, kad monetos su piku $1B archyve turi $2-6k likvidumo, o
+    apyvartos santykis ju neatskiria (ties 42:1 yra ir tikra UER, ir skemas FTR)."""
+    out = {}
+    for i in range(0, len(mintai), DEX_BATCH):
+        d = gauk_json(DEX + ",".join(mintai[i:i + DEX_BATCH]))
+        if not d:
+            continue
+        for p in (d.get("pairs") or []):
+            base = ((p.get("baseToken") or {}).get("address") or "")
+            if not base:
+                continue
+            lk = ((p.get("liquidity") or {}).get("usd") or 0)
+            mc = p.get("marketCap") or p.get("fdv") or 0
+            sena = out.get(base)
+            if sena is None or lk > sena[0]:
+                out[base] = (lk, mc)
         time.sleep(0.25)
     return out
 
@@ -750,6 +773,10 @@ def ciklas():
     print("   eiles: 24h=%d  72h=%d  (GT riba %d/cikl.)" % (len(eile24), len(eile72), GT_RIBA))
 
     gt = 0
+    # likvidumas MATAVIMO METU - vienas kvietimas 25 monetoms, pries zvakes
+    dex24 = dex_busena([m for _, m in eile24[:GT_RIBA]][:200]) if eile24 else {}
+    dex72 = dex_busena([m for _, m in eile72[:GT_RIBA]][:200]) if eile72 else {}
+
     for amzius, m in eile24:
         if gt >= GT_RIBA or time.time() - t0 > CIKLO_RIBA:
             break
@@ -761,6 +788,9 @@ def ciklas():
         if zv is None:
             continue
         e.update(matuok_24h(zv, grad_ts, e.get("supply")))
+        if m in dex24:
+            e["likv_24h"] = round(dex24[m][0], 2)
+            e["mc_dex_24h"] = round(dex24[m][1], 2)
 
     for amzius, m in eile72:
         if gt >= GT_RIBA or time.time() - t0 > CIKLO_RIBA:
@@ -773,6 +803,9 @@ def ciklas():
         if zv is None:
             continue
         e.update(matuok_72h(zv, grad_ts, e.get("supply")))
+        if m in dex72:
+            e["likv_72h"] = round(dex72[m][0], 2)
+            e["mc_dex_72h"] = round(dex72[m][1], 2)
         e["baigta"] = 1
 
     # --- 4. baigtos -> istorija, senos -> is busenos --------------------------
