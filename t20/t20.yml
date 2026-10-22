@@ -1,0 +1,57 @@
+name: swing t20
+
+# Binance dienos zvake uzsidaro 00:00 UTC. Pirmas bandymas 00:10, antras 00:40 -
+# jei GitHub pirmaji praleido (jis daznus tvarkarascius praleidineja).
+on:
+  schedule:
+    - cron: "10 0 * * *"
+    - cron: "40 0 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "t20/**"
+      - ".github/workflows/t20.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: t20
+  cancel-in-progress: false
+
+jobs:
+  signalai:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Kodas
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Signalai
+        shell: bash
+        run: |
+          mkdir -p isvestis
+          python3 t20/signalai.py isvestis 2>&1 | tee isvestis/zurnalas.txt
+
+      - name: Irasom i saka t20-duomenys
+        if: always()
+        shell: bash
+        run: |
+          cd isvestis
+          echo "paleidimas $(date -u +%FT%TZ) ${{ job.status }}" >> zurnalas.txt
+          rm -rf .git
+          git init -q
+          git config user.email "actions@github.com"
+          git config user.name "swing t20"
+          git add -A
+          git commit -q -m "signalai $(date -u +%FT%TZ)" || exit 0
+          git push -q --force \
+            "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" \
+            HEAD:t20-duomenys
+          echo "irasyta i saka t20-duomenys"

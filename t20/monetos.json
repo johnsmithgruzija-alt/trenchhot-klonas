@@ -1,0 +1,7 @@
+{
+  "pastaba": "Lygiai tas pats sarasas ir ta pati tvarka kaip Pine inputai s01-s20 (2026-10-03). Keiciamas TIK ranka ir TIK kartu su scalp-lab/swing_t20_signalai.pine.",
+  "monetos": ["BTCUSDT", "ETHUSDT", "ZECUSDT", "SOLUSDT", "XRPUSDT",
+              "NEARUSDT", "BNBUSDT", "SUIUSDT", "DOGEUSDT", "UNIUSDT",
+              "ENAUSDT", "AVAXUSDT", "LINKUSDT", "ADAUSDT", "WLDUSDT",
+              "TAOUSDT", "ARBUSDT", "PUMPUSDT", "PEPEUSDT", "TRXUSDT"]
+}
