@@ -1,11 +1,13 @@
 name: swing t20
 
-# Binance dienos zvake uzsidaro 00:00 UTC. Pirmas bandymas 00:10, antras 00:40 -
-# jei GitHub pirmaji praleido (jis daznus tvarkarascius praleidineja).
+# Binance dienos zvake uzsidaro 00:00 UTC, tad lentele pasikeicia karta per para.
+# Vis delto sukamesi KAS VALANDA (kaip modeliu skeneris): skaiciai nuo to nepasikeicia -
+# jie skaiciuojami tik is UZDARYTU dienu - bet jei naktinis paleidimas nepavyktu arba
+# GitHub ji praleistu (jis daznus tvarkarascius praleidineja), lentele atsitaiso per
+# valanda, o ne laukia kitos paros. Skriptas idempotentus: perraso ta pati JSON.
 on:
   schedule:
-    - cron: "10 0 * * *"
-    - cron: "40 0 * * *"
+    - cron: "20 * * * *"
   workflow_dispatch:
   push:
     branches: [main]
