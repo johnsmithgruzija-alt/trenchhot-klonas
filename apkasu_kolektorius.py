@@ -335,7 +335,7 @@ def matuok_72h(zv, grad_ts, supply=SUPPLY):
     # mirtis: paskutine zvake, kuri dar virs grindu ir su apyvarta
     gyvos = [x for x in langas if x[4] * S >= GYVA_MC and x[5] >= GYVA_APYV]
     r["paskutinis_h"] = round((langas[-1][0] - grad_ts) / 3600.0, 2)
-    r["mirties_h"] = round((gyvos[-1][0] - grad_ts) / 3600.0, 2) if gyvos else 0.0
+    r["mirties_h"] = max(0.0, round((gyvos[-1][0] - grad_ts) / 3600.0, 2)) if gyvos else 0.0
     return r
 
 
@@ -582,7 +582,8 @@ def daryk_data(busena):
 
     # gyvumo kreive (96 valandos)
     mirtys = [sk(e.get("mirties_h")) for e in baigtos]
-    mirtys = [m for m in mirtys if m is not None]
+    # neigiamas = mirė graduavimo žvakėje; kreivei tai yra 0 val., ne „nėra duomenų"
+    mirtys = [max(0.0, m) for m in mirtys if m is not None]
     kreive = []
     if mirtys:
         kreive = [round(sum(1 for m in mirtys if m >= h) / len(mirtys), 4)
