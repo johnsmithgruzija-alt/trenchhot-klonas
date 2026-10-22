@@ -4,7 +4,7 @@
 # serijos.json, dabar.json, atvejai.json, modeliai.json, skenavimas.json (LT ir EN tekstai), dabar.md ir busena.json.
 # Skaito skenerio eksportą (modeliu_skeneris_2026-10-22.js → __MS.EXPORT()), ankstesnę būseną (busena.json),
 # rašo dash/serijos.json, dash/dabar.json, dash/atvejai.json, dash/info.json, dabar.md ir atnaujina busena.json.
-# Spausdina santrauką ir NAUJI: … eilutes (kas atsirado nuo ankstesnio skenavimo).
+# Spausdina santrauką ir NAUJI: … eilutes (kas atsirado nuo ankstesnio skenavimo). „Nauja" puslapyje — per paskutines 24 val.
 import json, sys, os, datetime as dt
 
 VER = 'skeneris_builder_2026-10-22'
@@ -75,6 +75,17 @@ if os.path.exists(PREVF):
     except Exception: prev = {}
 prevKeys = set(prev.get('dabar_keys', [])); prevTrades = set(prev.get('trade_keys', []))
 firstRun = not prev
+# „Nauja" — įrašas pirmą kartą pasirodė per paskutines 24 val. ir nuo tada nedingo (skenuojama kas valandą).
+T_NOW = d['scanT']; LANGAS = 24 * 3600 * 1000
+pirmaPrev = prev.get('pirma', {})        # „Dabar" raktas -> kada pirmą kartą matytas (tik ne senesni nei 24 val.)
+uzbPirmaPrev = prev.get('uzb_pirma', {}) # užbaigto sandorio raktas -> kada pirmą kartą matytas užbaigtas
+if 'uzb_keys' in prev:
+    prevClosed = set(prev['uzb_keys'])
+else:  # senas busena.json formatas: trade_keys turėjo ir atvirus sandorius
+    _k4 = lambda k: (lambda a: (a[0], a[1], a[2], a[-1]))(k.split('|'))
+    _atv = {_k4(k) for k in prevKeys if k.split('|')[3] == 'atviras'}
+    prevClosed = {k for k in prevTrades if _k4(k) not in _atv}
+uzb_keys = []; uzbPirma = {}
 
 series = {}; cases = []; now = []; stats = {}; cmp = {}; errs = []; trade_keys = []
 for coin, C in d['coins'].items():
@@ -96,6 +107,7 @@ for coin, C in d['coins'].items():
                 key = f"{coin}|{tf}|{mid}|{t.get(KEYT[mid], t.get('tE'))}|{t['tE']}"
                 trade_keys.append(key)
                 open_ = t['why'] == 'eod'
+                if not open_: uzb_keys.append(key)
                 if not open_:
                     st['n'] += 1; st['win'] += 1 if t['R'] > 0 else 0; st['sumR'] += t['R']
                 iE = iOf(t['tE'] - (0 if t.get('tEo') == t['tE'] else bar)) if mid != '01' else iOf(t['tE'] - bar)
@@ -113,11 +125,10 @@ for coin, C in d['coins'].items():
                     cur = (lastC - t['e']) / (t['e'] - (t.get('st1') if t.get('rule') else t['st']))
                     now.append({'status': 'atviras', 'coin': coin, 'tf': tf, 'm': mid, 'case': c['id'], 'e': c['e'], 'st': c['st'], 'tg': c['tg'], 'Rnow': round(cur, 2), 'since': t['tE'], 'lv': c['lv'],
                                 'key': f"{coin}|{tf}|{mid}|atviras|{t['tE']}"})
-                elif not firstRun and key not in prevTrades:
+                elif not firstRun and (fs := (T_NOW if key not in prevClosed else uzbPirmaPrev.get(key))) is not None and T_NOW - fs < LANGAS:
+                    uzbPirma[key] = fs
                     now.append({'status': 'naujai_uzbaigtas', 'coin': coin, 'tf': tf, 'm': mid, 'case': c['id'], 'e': c['e'], 'st': c['st'], 'tg': c['tg'], 'R': c['R'], 'why': t['why'], 'since': t['tX'], 'lv': c['lv'],
                                 'key': f"{coin}|{tf}|{mid}|uzb|{t['tE']}"})
-                if not open_ and not firstRun and key not in prevTrades and t['tE'] > prev.get('lastT', {}).get(f'{coin}|{tf}', 0):
-                    pass
             for p in M.get('pend', []):
                 it = {'status': 'laukia_limit', 'coin': coin, 'tf': tf, 'm': mid, 'lvl': rp(p['lvl']), 'st': rp(p['st']), 'tg': rp(p['tg']), 'validTo': p.get('validTo'), 'validFrom': p.get('validFrom'),
                       'iS': iOf(p.get(SETUPT[mid], p.get('tQ', lastT))) if p.get(SETUPT[mid], p.get('tQ')) else n - 1, 'lv': {k: rp(p[k]) for k in LV.get(mid, []) if p.get(k) is not None},
@@ -133,11 +144,6 @@ for coin, C in d['coins'].items():
                 lvl = wtch.get('zTop', wtch.get('RL', wtch.get('RH', wtch.get('L'))))
                 it['key'] = f"{coin}|{tf}|{mid}|{typ}|{rp(lvl)}"
                 now.append(it)
-        # paskutinė žvakė: kas nauja įėjime (įėjimas paskutinėje žvakėje ar po ankstesnio skenavimo)
-        prevLast = prev.get('lastT', {}).get(f'{coin}|{tf}')
-        for it in now:
-            if it['coin'] == coin and it['tf'] == tf and it['status'] == 'atviras' and prevLast is not None and it['since'] > prevLast:
-                it['status'] = 'naujas_iejimas'
 
 # dublikatai (tas pats orderis iš kelių įvykių) ir 12 / 13B „laukia pramušimo" — tik artimiausia zona
 seen = set(); ded = []; near = {}
@@ -150,8 +156,14 @@ for it in now:
         near[g] = it; continue
     ded.append(it)
 now = ded + list(near.values())
+pirma = {}
 for it in now:
-    it['new'] = (not firstRun) and it['key'] not in prevKeys
+    fs = None if firstRun else (T_NOW if it['key'] not in prevKeys else pirmaPrev.get(it['key']))
+    it['new'] = fs is not None and T_NOW - fs < LANGAS   # nauja per 24 val.
+    it['ka_tik'] = fs is not None and fs == T_NOW        # atsirado būtent šiame skenavime (NAUJI: eilutės)
+    if it['new']:
+        pirma[it['key']] = fs
+        if it['status'] == 'atviras': it['status'] = 'naujas_iejimas'
     it['name'] = MODELS[it['m']][0]
 now.sort(key=lambda x: (PRIO.get(x['status'], 9), ['4H', '1D', '1W'].index(x['tf']), x['coin'], x['m']))
 
@@ -213,10 +225,10 @@ for it in now:
 L += ['', f"Varikliai 1:1: {len(cmp) - len(bad)} / {len(cmp)} rinkinių" + (f"; klaidos: {len(errs)}" if errs else ''), '', 'Ne finansinė rekomendacija.']
 open(os.path.join(BASE, 'dabar.md'), 'w').write('\n'.join(L) + '\n')
 
-json.dump({'scanT': d['scanT'], 'lastT': info['lastT'], 'dabar_keys': [x['key'] for x in now], 'trade_keys': trade_keys}, open(PREVF, 'w'))
+json.dump({'scanT': d['scanT'], 'lastT': info['lastT'], 'dabar_keys': [x['key'] for x in now], 'pirma': pirma, 'uzb_keys': uzb_keys, 'uzb_pirma': uzbPirma}, open(PREVF, 'w'))
 print(f"skenavimas {iso(d['scanT'])} · atvejų {len(cases)} · dabar {len(now)} · 1:1 {len(cmp) - len(bad)}/{len(cmp)} · klaidų {len(errs)}")
 for it in now:
-    if it['new'] and it['status'] in ('naujas_iejimas', 'laukia_limit', 'laukia_retesto', 'laukia_atgavimo', 'naujai_uzbaigtas'):
+    if it['ka_tik'] and it['status'] in ('naujas_iejimas', 'laukia_limit', 'laukia_retesto', 'laukia_atgavimo', 'naujai_uzbaigtas'):
         lv = ', '.join(f"{k} {v}" for k, v in it.items() if k in ('lvl', 'st', 'tg', 'zTop', 'zBot', 'RL', 'e', 'R') and v is not None)
         print(f"NAUJI: {it['coin']} {it['tf']} · {it['m']} {it['name']} · {STATUS[it['status']]} · {lv}")
 for e in errs: print('KLAIDA:', e)
