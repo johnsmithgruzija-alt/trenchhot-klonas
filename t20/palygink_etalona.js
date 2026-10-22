@@ -1,9 +1,9 @@
 // Patikra Nr. 2: musu variklis (Python, be F1) PRIES nepriklausoma etalona __LPB
-// is scalp-lab/lenteles_patikra_variklis_2026-10-03.js. Tie patys Binance duomenys.
+// is scalp-lab/swing-t20/lenteles_patikra_variklis_2026-10-03.js. Tie patys Binance duomenys.
 //   node palygink_etalona.js /tmp/t20_patikra2
 const fs = require("fs");
 const kelias = process.argv[2] || "/tmp/t20_patikra2";
-const ETALONAS = "/Users/jeff/Desktop/claude playground/scalp-lab/lenteles_patikra_variklis_2026-10-03.js";
+const ETALONAS = "/Users/jeff/Desktop/claude playground/scalp-lab/swing-t20/lenteles_patikra_variklis_2026-10-03.js";
 
 global.window = {};
 global.DAY = 864e5;

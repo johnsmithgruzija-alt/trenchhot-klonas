@@ -7,7 +7,7 @@ Atsiunčia Binance dienos žvakes VIENĄ kartą, išsaugo jas, ir iš tų pači�
   1) suskaičiuoja visus įėjimus / išėjimus mūsų varikliu (be F1 — kad būtų lyginama
      su etalonu, kuris F1 neturi) ir su F1;
   2) įrašo `duomenys.json` Node etalonui `__LPB`
-     (scalp-lab/lenteles_patikra_variklis_2026-10-03.js).
+     (scalp-lab/swing-t20/lenteles_patikra_variklis_2026-10-03.js).
 
   python3 patikra.py [aplankas]     (numatyta /tmp/t20_patikra2)
 """

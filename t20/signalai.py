@@ -3,7 +3,7 @@
 """
 signalai.py — Swing T20 lentelė Apkasų svetainei.
 
-Logika 1:1 iš /Users/jeff/Desktop/claude playground/scalp-lab/swing_t20_signalai.pine
+Logika 1:1 iš /Users/jeff/Desktop/claude playground/scalp-lab/pine/swing_t20_signalai.pine
 (v3.4, funkcija f() ir lentelės kodas). Taisyklių čia NEKEIČIAM ir „negerinam" —
 jos keičiamos tik scalp-lab projekte, po testo.
 

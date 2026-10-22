@@ -4,7 +4,7 @@ Kas rytą po Binance dienos uždarymo (00:00 UTC) GitHub Actions perskaičiuoja 
 swing signalus ir įrašo juos į šaką `t20-duomenys`. Puslapis `swing.html` (skirtukas
 „Swing T20") juos parodo.
 
-**Logika — 1:1 iš `scalp-lab/swing_t20_signalai.pine` (v3.4), funkcija `f()`.**
+**Logika — 1:1 iš `scalp-lab/pine/swing_t20_signalai.pine` (v3.4), funkcija `f()`.**
 Taisyklės čia nekeičiamos ir „negerinamos": jos keičiamos tik `scalp-lab` projekte,
 po testo, ir tik tada perkeliamos čia. `scalp-lab` failai iš čia neliečiami.
 
@@ -14,7 +14,7 @@ po testo, ir tik tada perkeliamos čia. `scalp-lab` failai iš čia neliečiami.
 |---|---|
 | `signalai.py` | skaičiuoklė: Binance dienos žvakės → `signalai.json`, `signalai.md` |
 | `monetos.json` | 20 monetų, **ta pati tvarka kaip Pine inputai s01–s20**; keičiama tik ranka ir tik kartu su Pine |
-| `t20.yml` | GitHub Actions (į repo keliama kaip `.github/workflows/t20.yml`) |
+| `t20.yml` | GitHub Actions, kas valandą UTC :20 (į repo keliama kaip `.github/workflows/t20.yml`) |
 | `patikra.py` | patikrai: atsiunčia žvakes vieną kartą ir paruošia duomenis abiem varikliams |
 | `palygink_etalona.js` | patikrai: palyginimas su nepriklausomu etalonu (Node) |
 
@@ -39,7 +39,7 @@ po testo, ir tik tada perkeliamos čia. `scalp-lab` failai iš čia neliečiami.
 - **LINK skiriasi žinomai:** mes 14,386 (15,1 %), TradingView 14,278 (14,2 %) — skiriasi
   istorinė LINK žvakė TradingView pusėje, ne logika. Buvo įspėta iš anksto prompte.
 
-**2. Visa istorija prieš nepriklausomą etaloną** `scalp-lab/lenteles_patikra_variklis_2026-10-03.js`
+**2. Visa istorija prieš nepriklausomą etaloną** `scalp-lab/swing-t20/lenteles_patikra_variklis_2026-10-03.js`
 (`__LPB` — savas ATR, savi max/min, be F1), tie patys Binance duomenys:
 
 ```
@@ -53,8 +53,10 @@ node palygink_etalona.js /tmp/t20_patikra2
 
 ## Paleidimas
 
-Automatiškai: 00:10 ir 00:40 UTC (antras — jei GitHub pirmąjį praleido; skriptas
-idempotentus, tiesiog perrašo tos dienos JSON).
+Automatiškai: **kas valandą** (UTC :20), kaip ir modelių skeneris. Lentelė keičiasi
+kartą per parą — skaičiuojama tik iš uždarytų dienų — bet dažnas paleidimas reiškia,
+kad nepavykęs naktinis ciklas atsitaiso per valandą, o ne per parą. Skriptas idempotentus:
+perrašo tos pačios dienos JSON.
 
 Ranka: GitHub → **Actions** → **swing t20** → **Run workflow**.
 
