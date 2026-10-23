@@ -195,6 +195,34 @@ def poolai(mintai, pabaiga):
     return out
 
 
+NAUJO_PIKO_RIBA = float(os.environ.get("NAUJO_PIKO_RIBA", "1.10"))
+
+
+def pikas_is(e):
+    """Pikas ir is kur jis. Grazina (pikas, "pump" | "savas").
+
+    2026-10-23. Pirmame cikle 34 is 60 "pike" monetu rode TIKSLIAI 0,0 % — ne todel,
+    kad jos butu pacioje virsuneje, o todel, kad pika perrasydavo musu pacio matavimas:
+    DexScreener marketCap ir pump.fun ath_market_cap skaiciuojami skirtingai (kitas
+    tiekimas, kita kaina), tad DexScreener reiksme reguliariai buna siek tiek didesne.
+    Tada pikas = siandienos kaina ir kritimas visada 0.
+
+    Blogiau uz kosmetika: vienas isputes DexScreener matavimas butu amzinai pakeles pika,
+    ir moneta veliau butu rodoma "giliai" be jokios priezasties.
+
+    Todel pump.fun ATH yra pirminis (jis pump.fun monetai autoritetingas), o musu
+    matavimas pika pakelia tik tada, kai virsija ji bent NAUJO_PIKO_RIBA kartus —
+    t. y. kai tai tikra nauja virsune, ne saltiniu skirtumas.
+    """
+    p = float(e.get("ath_p") or 0)
+    sav = float(e.get("ath_s") or 0)
+    if p <= 0:
+        return (sav, "savas")
+    if sav > p * NAUJO_PIKO_RIBA:
+        return (sav, "savas")
+    return (p, "pump")
+
+
 def skaityk_busena():
     if not os.path.exists(F_BUSENA):
         return {}
@@ -208,6 +236,16 @@ def skaityk_busena():
         svarus = {m: e for m, e in d.items() if isinstance(e, dict)}
         if len(svarus) != len(d):
             log("  busenoje praleista %d netinkamo formato irasu\n" % (len(d) - len(svarus)))
+        # Migracija is pirmos versijos, kur buvo tik "pikas" (be ath_p / ath_s).
+        # Sena reiksme ideda i ath_s; pump.fun ATH atsistatys kitame cikle.
+        sena = 0
+        for e in svarus.values():
+            if "ath_p" not in e and "ath_s" not in e:
+                e["ath_s"] = float(e.get("pikas") or 0)
+                e["ath_p"] = 0.0
+                sena += 1
+        if sena:
+            log("  perkelta is senos busenos formato: %d\n" % sena)
         return svarus
     except Exception as e:
         log("  busenos failas sugadintas (%s) - pradedam nuo nulio\n" % type(e).__name__)
@@ -226,13 +264,14 @@ def ciklas():
         e = bus.get(c["mint"])
         if e is None:
             bus[c["mint"]] = {"symbol": c["symbol"], "name": c["name"],
-                              "pikas": c["ath"], "mc": c["mc"], "liq": 0.0,
+                              "ath_p": c["ath"], "ath_s": 0.0,
+                              "mc": c["mc"], "liq": 0.0,
                               "creator": c.get("creator", ""),
                               "pirma": time.time(), "mates": 0}
             nauji += 1
         else:
-            if c["ath"] > float(e.get("pikas") or 0):
-                e["pikas"] = c["ath"]
+            if c["ath"] > float(e.get("ath_p") or 0):
+                e["ath_p"] = c["ath"]
             e["symbol"] = c["symbol"] or e.get("symbol")
             e["name"] = c["name"] or e.get("name")
     log("  naujos: %d\n" % nauji)
@@ -251,13 +290,18 @@ def ciklas():
         liq = float(pr.get("_liq") or 0)
         if mc > 0:
             e["mc"] = mc
-            if mc > float(e.get("pikas") or 0):      # pats pamatem auksciau nei pump.fun
-                e["pikas"] = mc
+            if mc > float(e.get("ath_s") or 0):
+                e["ath_s"] = mc
         e["liq"] = liq
         e["mates"] = dabar
         bt = pr.get("baseToken") or {}
         if bt.get("symbol"):
             e["symbol"] = str(bt["symbol"])[:16]
+
+    # Pikas perskaiciuojamas VISOMS sekamoms, ne tik toms, kurias si cikla grazino
+    # DexScreener — kitaip ju irasai lieka be "pikas" ir ruoseju skaitomi kaip bereiksmiai.
+    for e in bus.values():
+        e["pikas"], e["pikas_is"] = pikas_is(e)
 
     # 3. pamirstam tai, ko DexScreener nebeturi
     riba = dabar - PAMIRSTI_D * 86400

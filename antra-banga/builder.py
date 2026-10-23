@@ -110,7 +110,7 @@ def surink(busena_kelias, baigtys_kelias=BAIGTYS):
         if amzius_h is not None and amzius_h > SENA_H:
             seni += 1
             continue
-        kritimas = (M / P - 1) * 100
+        kritimas = min(0.0, (M / P - 1) * 100)
         monetos.append({
             "mint": mint,
             "s": e.get("symbol") or "?",
@@ -121,6 +121,7 @@ def surink(busena_kelias, baigtys_kelias=BAIGTYS):
             "kr": round(kritimas, 1),
             "x": round(P / L, 1),
             "sen": round(amzius_h, 1) if amzius_h is not None else None,
+            "is": e.get("pikas_is") or "?",
             "e": etapas(kritimas),
         })
 
