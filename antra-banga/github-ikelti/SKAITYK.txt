@@ -1,0 +1,29 @@
+ANTRA BANGA — ka ikelti i GitHub
+=================================
+
+Repo: github.com/johnsmithgruzija-alt/trenchhot-klonas
+
+1) KODAS
+   Repo pagrindiniame puslapyje: Add file -> Upload files
+   Nuvilk aplanka "antra-banga" (ta, kuris salia sio failo).
+   Turi atsirasti: antra-banga/kolektorius.py
+                   antra-banga/builder.py
+                   antra-banga/TAISYKLES-2026-10-23.md
+   Apacioje: Commit changes
+
+2) WORKFLOW  (del sito 10-22 nesuveike t20 — jis buvo ikeltas i saknį)
+   Repo naršyk i aplanka:  .github  ->  workflows
+   Ten: Add file -> Upload files
+   Nuvilk VIENA faila "antra-banga.yml" (ji matai salia sio failo).
+   Kelias turi tapti: .github/workflows/antra-banga.yml
+   Apacioje: Commit changes
+
+3) PALEIDIMAS
+   Virsuje: Actions -> kaireje "antra banga" -> Run workflow -> Run workflow
+   Po ~2 min. turi buti zalia varnele.
+
+4) PATIKRA
+   Atsiras nauja saka "antra-banga" su trim failais:
+     busena.json        (atmintis tarp ciklu)
+     antra_banga.json   (tai, ka skaitys puslapis)
+     ciklai.json        (paleidimu zurnalas)
