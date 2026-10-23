@@ -1,0 +1,67 @@
+name: antra banga
+
+# Parasyta "kas 10 min.", bet GitHub dazno tvarkarascio nesilaiko: trenchhot
+# kolektorius, kuriam parasyta kas 5 min., realiai paleidziamas kas 20-32 min.
+# Tai nieko nelauzo — monetos, kurios buvo virs $1M, per pusvalandi niekur nedingsta.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:          # ranka: Actions -> antra banga -> Run workflow
+
+permissions:
+  contents: write             # kad galetu irasyti i saka "antra-banga"
+
+concurrency:
+  group: antra-banga          # du ciklai vienu metu nesusidurs
+  cancel-in-progress: false
+
+jobs:
+  rinkti:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Kodas
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: curl_cffi (pump.fun yra uz Cloudflare)
+        run: pip install --quiet curl_cffi
+
+      - name: Atkuriam busena is sakos "antra-banga"
+        run: |
+          mkdir -p duomenys
+          if git ls-remote --exit-code --heads origin antra-banga >/dev/null 2>&1; then
+            git fetch --depth 1 origin antra-banga
+            git archive FETCH_HEAD | tar -x -C duomenys
+            echo "busena atkurta:"
+            ls -la duomenys
+          else
+            echo "sakos 'antra-banga' dar nera - pirmas ciklas, pradedam nuo nulio"
+          fi
+
+      - name: Ciklas
+        env:
+          ANTRA_BANGA_DIR: ${{ github.workspace }}/duomenys
+        run: python3 -u antra-banga/kolektorius.py
+
+      - name: Irasom atgal
+        run: |
+          cd duomenys
+          rm -rf .git
+          git init -q
+          git config user.email "actions@github.com"
+          git config user.name "antra banga"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "niekas nepasikeite"
+            exit 0
+          fi
+          git commit -q -m "antra banga $(date -u +%FT%TZ)"
+          git push -q --force \
+            "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" \
+            HEAD:antra-banga
+          echo "irasyta i saka antra-banga"
