@@ -1,0 +1,15 @@
+BTC 1H 80539 užpildyta 128 užklausų 81 2017-08-17T04:00:00.000Z → 2026-10-24T22:00:00.000Z
+  BTC 4H žvakių 20134 modelių su nesutapimu / klaida 0
+  BTC 1D žvakių 3354 modelių su nesutapimu / klaida 0
+  BTC 1W žvakių 478 modelių su nesutapimu / klaida 0
+ETH 1H 80539 užpildyta 128 užklausų 81 2017-08-17T04:00:00.000Z → 2026-10-24T22:00:00.000Z
+  ETH 4H žvakių 20134 modelių su nesutapimu / klaida 0
+  ETH 1D žvakių 3354 modelių su nesutapimu / klaida 0
+  ETH 1W žvakių 478 modelių su nesutapimu / klaida 0
+SOL 1H 54377 užpildyta 20 užklausų 55 2020-08-11T06:00:00.000Z → 2026-10-24T22:00:00.000Z
+  SOL 4H žvakių 13593 modelių su nesutapimu / klaida 0
+  SOL 1D žvakių 2264 modelių su nesutapimu / klaida 0
+  SOL 1W žvakių 322 modelių su nesutapimu / klaida 0
+įrašyta eksportas.json
+skenavimas 2026-10-24 23:26 · atvejų 1690 · dabar 24 · 1:1 126/126 · klaidų 0
+paleidimas 2026-10-24T23:27:15Z success
