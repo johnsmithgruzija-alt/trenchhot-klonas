@@ -138,6 +138,7 @@ def atranka():
             seen.add(mint)
             rasti.append({"mint": mint, "symbol": str(c.get("symbol") or "?"),
                           "name": (c.get("name") or "")[:24], "ath": ath, "mc": mc,
+                          "ath_ts": f(c, "ath_market_cap_timestamp"),
                           "creator": c.get("creator", "")})
         time.sleep(SLEEP)
         if zemiausias < MC_GRINDYS:              # sarasas rikiuotas mazejanciai
@@ -196,6 +197,47 @@ def poolai(mintai, pabaiga):
 
 
 NAUJO_PIKO_RIBA = float(os.environ.get("NAUJO_PIKO_RIBA", "1.10"))
+DUG_MIN_S = 3000.0   # kol istorija trumpesne, X nuo dugno neskaiciuojam
+
+
+def dugnas(e, mc, dabar_ts):
+    """X nuo 24 h dugno, kiek valandu nuo dugno ir vieta diapazone.
+
+    Perkelta 1:1 is m1-radaras/m1_radaras.py (eil. 525-543). Istorija laikoma
+    VALANDINEMIS dezutemis [valanda, zemiausia, auksciausia, zemiausios laikas],
+    ne visais matavimais — 24 irasai monetai, ne visa istorija.
+
+    Dugnas yra SLENKANTIS 24 h, ne visu laiku: "kiek X nuo apsivertimo" yra
+    klausimas apie paskutine para, ne apie monetos gyvenima.
+
+    Kol praejo maziau nei DUG_MIN_S nuo seniausios dezutes, negrazinam nieko —
+    is vieno matavimo X butu 1,0 ir atrodytu kaip faktas.
+    """
+    val = int(dabar_ts // 3600)
+    mch = e.get("mc_h") or []
+    if not isinstance(mch, list):
+        mch = []
+    mch = [x for x in mch if isinstance(x, (list, tuple)) and len(x) == 4 and val - x[0] < 24]
+    mch = [list(x) for x in mch]
+    if mch and mch[-1][0] == val:
+        b = mch[-1]
+        if mc < b[1]:
+            b[1] = mc
+            b[3] = dabar_ts
+        if mc > b[2]:
+            b[2] = mc
+    else:
+        mch.append([val, mc, mc, dabar_ts])
+    e["mc_h"] = mch[-24:]
+    if len(mch) >= 2 and (dabar_ts - mch[0][3]) >= DUG_MIN_S:
+        lo = min(x[1] for x in mch)
+        hi = max(x[2] for x in mch)
+        if lo > 0:
+            dug_ts = min((x for x in mch if x[1] == lo), key=lambda y: y[1])[3]
+            return (round(mc / lo, 2),
+                    round((dabar_ts - dug_ts) / 3600.0, 1),
+                    int(round(100.0 * (mc - lo) / (hi - lo))) if hi > lo else 50)
+    return (None, None, None)
 
 
 def pikas_is(e):
@@ -264,7 +306,7 @@ def ciklas():
         e = bus.get(c["mint"])
         if e is None:
             bus[c["mint"]] = {"symbol": c["symbol"], "name": c["name"],
-                              "ath_p": c["ath"], "ath_s": 0.0,
+                              "ath_p": c["ath"], "ath_s": 0.0, "ath_ts": c.get("ath_ts") or 0,
                               "mc": c["mc"], "liq": 0.0,
                               "creator": c.get("creator", ""),
                               "pirma": time.time(), "mates": 0}
@@ -272,6 +314,9 @@ def ciklas():
         else:
             if c["ath"] > float(e.get("ath_p") or 0):
                 e["ath_p"] = c["ath"]
+                e["ath_ts"] = c.get("ath_ts") or e.get("ath_ts") or 0
+            elif not e.get("ath_ts") and c.get("ath_ts"):
+                e["ath_ts"] = c["ath_ts"]
             e["symbol"] = c["symbol"] or e.get("symbol")
             e["name"] = c["name"] or e.get("name")
     log("  naujos: %d\n" % nauji)
@@ -293,6 +338,11 @@ def ciklas():
             if mc > float(e.get("ath_s") or 0):
                 e["ath_s"] = mc
         e["liq"] = liq
+        pc = f(pr, "pairCreatedAt")          # tikras monetos amzius, ne "kada mes pamatem"
+        if pc > 0:
+            e["pool_ts"] = pc
+        if mc > 0:
+            e["x_dug"], e["dug_h"], e["v24"] = dugnas(e, mc, dabar)
         e["mates"] = dabar
         bt = pr.get("baseToken") or {}
         if bt.get("symbol"):

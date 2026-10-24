@@ -21,6 +21,7 @@ ISVESTIS = os.path.join(HERE, "antra_banga.json")
 ATH_MIN   = 1_000_000      # pikas turi buti bent toks
 SKEMO_RIBA = 100           # pikas > 100x likvidumo = nupiesta kaina
 PER_ETAPA = 60             # kiek monetu rodom viename etape
+SVIEZI_H  = 168            # "sviezia" = poolas jaunesnis nei tiek valandu (7 paros)
 SENA_H    = 24             # matavimas senesnis nei tiek valandu - tai ne "dabar"
 
 # (raktas, LT, EN, apatine kritimo riba %) - nuo virsaus zemyn
@@ -111,6 +112,11 @@ def surink(busena_kelias, baigtys_kelias=BAIGTYS):
             seni += 1
             continue
         kritimas = min(0.0, (M / P - 1) * 100)
+        # tikras amzius is DexScreener pairCreatedAt (ms); "pirma" yra tik "kada MES pamatem"
+        pool_ts = sk(e.get("pool_ts"))
+        amz_h = round((dabar - pool_ts / 1000.0) / 3600.0, 1) if pool_ts and pool_ts > 1e11 else None
+        ath_ts = sk(e.get("ath_ts"))
+        pikas_pries_h = round((dabar - ath_ts / 1000.0) / 3600.0, 1) if ath_ts and ath_ts > 1e11 else None
         monetos.append({
             "mint": mint,
             "s": e.get("symbol") or "?",
@@ -122,6 +128,12 @@ def surink(busena_kelias, baigtys_kelias=BAIGTYS):
             "x": round(P / L, 1),
             "sen": round(amzius_h, 1) if amzius_h is not None else None,
             "is": e.get("pikas_is") or "?",
+            "amz": amz_h,                      # monetos amzius valandomis
+            "pikas_h": pikas_pries_h,          # pries kiek valandu buvo pikas
+            "xd": sk(e.get("x_dug")),          # X nuo 24 h dugno
+            "dug_h": sk(e.get("dug_h")),       # kiek valandu nuo dugno
+            "v24": sk(e.get("v24")),           # vieta 24 h diapazone, 0-100
+            "sviezia": 1 if (amz_h is not None and amz_h <= SVIEZI_H) else 0,
             "e": etapas(kritimas),
         })
 
@@ -130,9 +142,12 @@ def surink(busena_kelias, baigtys_kelias=BAIGTYS):
     for c in monetos:
         sk_etapu[c["e"]] += 1
 
+    # Sviezios monetos i sarasa patenka VISADA, net jei ju etapas jau pilnas:
+    # butent ju vartotojas ieskojo, o etapo riba (PER_ETAPA) nukirsdavo jauniausias,
+    # nes rikiuojama pagal kapitalizacija. Be sito kortele rode 63, o sarasas 45.
     rodom, kiek = [], {r: 0 for r in sk_etapu}
     for c in monetos:
-        if kiek[c["e"]] < PER_ETAPA:
+        if c["sviezia"] or kiek[c["e"]] < PER_ETAPA:
             kiek[c["e"]] += 1
             rodom.append(c)
 
@@ -140,11 +155,13 @@ def surink(busena_kelias, baigtys_kelias=BAIGTYS):
         "atnaujinta": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "saltinio_laikas": time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                          time.gmtime(os.path.getmtime(busena_kelias))),
-        "taisykles": {"ath_min": ATH_MIN, "skemo_riba": SKEMO_RIBA,
+        "taisykles": {"ath_min": ATH_MIN, "skemo_riba": SKEMO_RIBA, "sviezi_h": SVIEZI_H,
                       "ribos": [[r, riba] for r, _, _, riba in ETAPAI if riba > -1e8]},
         "etapai": [{"r": r, "lt": lt, "en": en, "n": sk_etapu[r]} for r, lt, en, _ in ETAPAI],
         "suvestine": {"viso_sekama": viso, "be_skaiciu": be_skaiciu,
-                      "nupiesti": nupiesti, "seni": seni, "tikri": len(monetos)},
+                      "nupiesti": nupiesti, "seni": seni, "tikri": len(monetos),
+                      "sviezios": sum(1 for c in monetos if c["sviezia"]),
+                      "su_x": sum(1 for c in monetos if c["xd"])},
         "bazine": bazine_statistika(baigtys_kelias),
         "monetos": rodom,
     }
@@ -163,6 +180,8 @@ def main():
                                    os.path.getsize(isvestis) // 1024))
     print("  sekama %d | be skaiciu %d | nupiesti %d | seni %d | tikri %d"
           % (s["viso_sekama"], s["be_skaiciu"], s["nupiesti"], s["seni"], s["tikri"]))
+    print("  sviezios (<= %d h): %d | su X nuo dugno: %d"
+          % (SVIEZI_H, s.get("sviezios", 0), s.get("su_x", 0)))
     for e in r["etapai"]:
         print("  %-14s %3d" % (e["lt"], e["n"]))
     if r["bazine"]:
