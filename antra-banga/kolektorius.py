@@ -201,6 +201,8 @@ DUG_MIN_S = 3000.0   # kol istorija trumpesne, X nuo dugno neskaiciuojam
 MIN_MC_LIQ = 0.5     # matavimas, kur mc < tiek x likvidumo, yra sugadintas, ne kaina
 X_VER = 2            # pakeitus dugno skaiciavima, sena istorija isvaloma
 REV_RIBA = float(os.environ.get("REV_RIBA", "1.5"))   # kiek karta pakilus nuo dugno = apsivertimas
+MAX_MC_LIQ = 5000.0  # mc virs tiek x likvidumo yra nupiesta kaina, ne kapitalizacija
+REV_VER = 2          # pakeitus inkaro apsauga, seni inkarai isvalomi
 
 
 def dugnas(e, mc, dabar_ts, liq=0.0):
@@ -252,7 +254,7 @@ def dugnas(e, mc, dabar_ts, liq=0.0):
     return (None, None, None)
 
 
-def apsivertimas(e, mc, dabar_ts):
+def apsivertimas(e, mc, dabar_ts, liq=0.0):
     """Fiksuotas inkaras: nuo kurio dugno moneta apsivertė.
 
     Slenkantis 24 h dugnas tam netinka — po paros jis pasislenka ir X nusinulina.
@@ -268,6 +270,16 @@ def apsivertimas(e, mc, dabar_ts):
     """
     if mc <= 0:
         return
+
+    # 2026-10-24. AOP: inkaru tapo $41 330 matavimas, kai moneta yra $42,6 mln. —
+    # X soko iki 1032x ir butu kabojes amzinai (x_rev_max nenukrenta). Ta pati yda
+    # kaip YMBCOIN dugne, tad ir apsauga ta pati, tik abipuse. Ribos is duomenu:
+    # 531 monetos mc/likvidumas yra 0,76...1725 (99 proc. ties 213), tad zemiau 0,5
+    # ir virs 5000 realiu matavimu nebuna — tokiu dydziu nei dugnu, nei virsuniu
+    # neimam, tik praleidziam ta cikla.
+    if liq > 0 and (mc < liq * MIN_MC_LIQ or mc > liq * MAX_MC_LIQ):
+        return
+
     lo = sk_arba(e, "lo_mc")
     rev = sk_arba(e, "rev_mc")
 
@@ -353,6 +365,18 @@ def skaityk_busena():
                 isvalyta += 1
         if isvalyta:
             log("  dugno istorija isvalyta (versija %d): %d\n" % (X_VER, isvalyta))
+        # Inkarai, uzfiksuoti pries apsauga, lieka sugadinti (AOP 1032x), tad
+        # isvalomi vienakart. Dugno istorija (mc_h) nelieciama — ji sveika.
+        rev_isv = 0
+        for e in svarus.values():
+            if int(e.get("rev_ver") or 0) < REV_VER:
+                for k in ("lo_mc", "lo_ts", "rev_mc", "rev_ts", "rev_at",
+                          "x_rev", "x_rev_max"):
+                    e.pop(k, None)
+                e["rev_ver"] = REV_VER
+                rev_isv += 1
+        if rev_isv:
+            log("  inkarai isvalyti (versija %d): %d\n" % (REV_VER, rev_isv))
         sena = 0
         for e in svarus.values():
             if "ath_p" not in e and "ath_s" not in e:
@@ -430,7 +454,7 @@ def ciklas():
     for m, pr in pls.items():
         e = bus.get(m)
         if e is not None:
-            apsivertimas(e, sk_arba(e, "mc") or 0, dabar)
+            apsivertimas(e, sk_arba(e, "mc") or 0, dabar, sk_arba(e, "liq") or 0.0)
 
     # Pikas perskaiciuojamas VISOMS sekamoms, ne tik toms, kurias si cikla grazino
     # DexScreener — kitaip ju irasai lieka be "pikas" ir ruoseju skaitomi kaip bereiksmiai.
