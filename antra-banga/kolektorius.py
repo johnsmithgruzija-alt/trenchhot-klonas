@@ -198,9 +198,11 @@ def poolai(mintai, pabaiga):
 
 NAUJO_PIKO_RIBA = float(os.environ.get("NAUJO_PIKO_RIBA", "1.10"))
 DUG_MIN_S = 3000.0   # kol istorija trumpesne, X nuo dugno neskaiciuojam
+MIN_MC_LIQ = 0.5     # matavimas, kur mc < tiek x likvidumo, yra sugadintas, ne kaina
+X_VER = 2            # pakeitus dugno skaiciavima, sena istorija isvaloma
 
 
-def dugnas(e, mc, dabar_ts):
+def dugnas(e, mc, dabar_ts, liq=0.0):
     """X nuo 24 h dugno, kiek valandu nuo dugno ir vieta diapazone.
 
     Perkelta 1:1 is m1-radaras/m1_radaras.py (eil. 525-543). Istorija laikoma
@@ -213,6 +215,15 @@ def dugnas(e, mc, dabar_ts):
     Kol praejo maziau nei DUG_MIN_S nuo seniausios dezutes, negrazinam nieko —
     is vieno matavimo X butu 1,0 ir atrodytu kaip faktas.
     """
+    # 2026-10-24. YMBCOIN: 01:35 buvo $1,120,596, 02:33 DexScreener grazino $2,235,
+    # 03:34 vel $1,075,867. Tai ne kaina, o sugadintas matavimas — bet jis tapo dugnu
+    # ir X soktelejo iki 481x, o x_max butu toki pakabines amzinai.
+    # Riba paimta is duomenu, ne is galvos: 487 monetu mc/likvidumas minimumas yra
+    # 0,861, pirmas procentilis 0,957. Zemiau 0,5 realiu matavimu nebuna — tokiu
+    # dezuciu buvo 1 is 1427 (0,07 %), ir ta viena buvo si klaida.
+    if liq > 0 and mc < liq * MIN_MC_LIQ:
+        return (sk_arba(e, "x_dug"), sk_arba(e, "dug_h"), sk_arba(e, "v24"))
+
     val = int(dabar_ts // 3600)
     mch = e.get("mc_h") or []
     if not isinstance(mch, list):
@@ -238,6 +249,15 @@ def dugnas(e, mc, dabar_ts):
                     round((dabar_ts - dug_ts) / 3600.0, 1),
                     int(round(100.0 * (mc - lo) / (hi - lo))) if hi > lo else 50)
     return (None, None, None)
+
+
+def sk_arba(e, raktas):
+    """Ankstesne reiksme, kai si cikla matavimo praleidziam."""
+    try:
+        v = e.get(raktas)
+        return None if v is None else float(v)
+    except (TypeError, ValueError):
+        return None
 
 
 def pikas_is(e):
@@ -280,6 +300,15 @@ def skaityk_busena():
             log("  busenoje praleista %d netinkamo formato irasu\n" % (len(d) - len(svarus)))
         # Migracija is pirmos versijos, kur buvo tik "pikas" (be ath_p / ath_s).
         # Sena reiksme ideda i ath_s; pump.fun ATH atsistatys kitame cikle.
+        isvalyta = 0
+        for e in svarus.values():
+            if int(e.get("x_ver") or 0) < X_VER:
+                e.pop("mc_h", None); e.pop("x_max", None); e.pop("x_max_ts", None)
+                e.pop("x_dug", None); e.pop("dug_h", None); e.pop("v24", None)
+                e["x_ver"] = X_VER
+                isvalyta += 1
+        if isvalyta:
+            log("  dugno istorija isvalyta (versija %d): %d\n" % (X_VER, isvalyta))
         sena = 0
         for e in svarus.values():
             if "ath_p" not in e and "ath_s" not in e:
@@ -342,7 +371,7 @@ def ciklas():
         if pc > 0:
             e["pool_ts"] = pc
         if mc > 0:
-            e["x_dug"], e["dug_h"], e["v24"] = dugnas(e, mc, dabar)
+            e["x_dug"], e["dug_h"], e["v24"] = dugnas(e, mc, dabar, liq)
             # Didziausias X, koki moneta kada nors pasieke, LIEKA kaboti net jai
             # vel nukritus: tai irasas, kad atsokimas buvo, o ne dabartine busena.
             # Slenkantis 24 h dugnas X nunulina kas para — be sito irasas dingtu.
