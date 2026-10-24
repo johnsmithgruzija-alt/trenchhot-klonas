@@ -200,6 +200,7 @@ NAUJO_PIKO_RIBA = float(os.environ.get("NAUJO_PIKO_RIBA", "1.10"))
 DUG_MIN_S = 3000.0   # kol istorija trumpesne, X nuo dugno neskaiciuojam
 MIN_MC_LIQ = 0.5     # matavimas, kur mc < tiek x likvidumo, yra sugadintas, ne kaina
 X_VER = 2            # pakeitus dugno skaiciavima, sena istorija isvaloma
+REV_RIBA = float(os.environ.get("REV_RIBA", "1.5"))   # kiek karta pakilus nuo dugno = apsivertimas
 
 
 def dugnas(e, mc, dabar_ts, liq=0.0):
@@ -249,6 +250,49 @@ def dugnas(e, mc, dabar_ts, liq=0.0):
                     round((dabar_ts - dug_ts) / 3600.0, 1),
                     int(round(100.0 * (mc - lo) / (hi - lo))) if hi > lo else 50)
     return (None, None, None)
+
+
+def apsivertimas(e, mc, dabar_ts):
+    """Fiksuotas inkaras: nuo kurio dugno moneta apsivertė.
+
+    Slenkantis 24 h dugnas tam netinka — po paros jis pasislenka ir X nusinulina.
+    Cia inkaras pastovus: iraso DUGNO kaina ir laika, ir nuo jo skaiciuojam, kol
+    moneta nenukrenta zemiau to paties dugno. Nukritus — inkaras isvalomas ir
+    laukiam naujo apsivertimo (tai jau kita situacija, ne ta pati).
+
+    rev_mc  - dugno kapitalizacija (inkaras)
+    rev_ts  - kada tas dugnas buvo
+    rev_at  - kada suveike zyme (praejus REV_RIBA kartu)
+    x_rev   - dabartinis X nuo inkaro
+    x_rev_max - didziausias kada nors pasiektas; KABO, net jei po to nukrito
+    """
+    if mc <= 0:
+        return
+    lo = sk_arba(e, "lo_mc")
+    rev = sk_arba(e, "rev_mc")
+
+    if rev and mc < rev:          # naujas dugnas zemiau inkaro — situacija kita
+        for k in ("rev_mc", "rev_ts", "rev_at", "x_rev", "x_rev_max"):
+            e.pop(k, None)
+        rev = None
+        lo = None
+
+    if lo is None or mc < lo:     # sekam zemiausia matyta taska
+        e["lo_mc"] = mc
+        e["lo_ts"] = dabar_ts
+        lo = mc
+
+    if rev is None and lo > 0 and mc >= lo * REV_RIBA:
+        e["rev_mc"] = lo
+        e["rev_ts"] = sk_arba(e, "lo_ts") or dabar_ts
+        e["rev_at"] = dabar_ts
+        rev = lo
+
+    if rev and rev > 0:
+        x = mc / rev
+        e["x_rev"] = round(x, 2)
+        if x > (sk_arba(e, "x_rev_max") or 0):
+            e["x_rev_max"] = round(x, 2)
 
 
 def sk_arba(e, raktas):
@@ -382,6 +426,11 @@ def ciklas():
         bt = pr.get("baseToken") or {}
         if bt.get("symbol"):
             e["symbol"] = str(bt["symbol"])[:16]
+
+    for m, pr in pls.items():
+        e = bus.get(m)
+        if e is not None:
+            apsivertimas(e, sk_arba(e, "mc") or 0, dabar)
 
     # Pikas perskaiciuojamas VISOMS sekamoms, ne tik toms, kurias si cikla grazino
     # DexScreener — kitaip ju irasai lieka be "pikas" ir ruoseju skaitomi kaip bereiksmiai.
