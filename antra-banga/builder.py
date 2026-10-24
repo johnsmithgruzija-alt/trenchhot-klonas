@@ -131,6 +131,9 @@ def surink(busena_kelias, baigtys_kelias=BAIGTYS):
             "amz": amz_h,                      # monetos amzius valandomis
             "pikas_h": pikas_pries_h,          # pries kiek valandu buvo pikas
             "xd": sk(e.get("x_dug")),          # X nuo 24 h dugno
+            "xmax": sk(e.get("x_max")),        # didziausias X, koki buvo pasieke
+            "xmax_h": (round((dabar - sk(e.get("x_max_ts"))) / 3600.0, 1)
+                       if sk(e.get("x_max_ts")) else None),
             "dug_h": sk(e.get("dug_h")),       # kiek valandu nuo dugno
             "v24": sk(e.get("v24")),           # vieta 24 h diapazone, 0-100
             "sviezia": 1 if (amz_h is not None and amz_h <= SVIEZI_H) else 0,
@@ -161,7 +164,8 @@ def surink(busena_kelias, baigtys_kelias=BAIGTYS):
         "suvestine": {"viso_sekama": viso, "be_skaiciu": be_skaiciu,
                       "nupiesti": nupiesti, "seni": seni, "tikri": len(monetos),
                       "sviezios": sum(1 for c in monetos if c["sviezia"]),
-                      "su_x": sum(1 for c in monetos if c["xd"])},
+                      "su_x": sum(1 for c in monetos if c["xd"]),
+                      "su_xmax": sum(1 for c in monetos if c["xmax"])},
         "bazine": bazine_statistika(baigtys_kelias),
         "monetos": rodom,
     }
@@ -180,8 +184,8 @@ def main():
                                    os.path.getsize(isvestis) // 1024))
     print("  sekama %d | be skaiciu %d | nupiesti %d | seni %d | tikri %d"
           % (s["viso_sekama"], s["be_skaiciu"], s["nupiesti"], s["seni"], s["tikri"]))
-    print("  sviezios (<= %d h): %d | su X nuo dugno: %d"
-          % (SVIEZI_H, s.get("sviezios", 0), s.get("su_x", 0)))
+    print("  sviezios (<= %d h): %d | su X nuo dugno: %d | su max X: %d"
+          % (SVIEZI_H, s.get("sviezios", 0), s.get("su_x", 0), s.get("su_xmax", 0)))
     for e in r["etapai"]:
         print("  %-14s %3d" % (e["lt"], e["n"]))
     if r["bazine"]:

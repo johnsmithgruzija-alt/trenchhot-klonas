@@ -343,6 +343,12 @@ def ciklas():
             e["pool_ts"] = pc
         if mc > 0:
             e["x_dug"], e["dug_h"], e["v24"] = dugnas(e, mc, dabar)
+            # Didziausias X, koki moneta kada nors pasieke, LIEKA kaboti net jai
+            # vel nukritus: tai irasas, kad atsokimas buvo, o ne dabartine busena.
+            # Slenkantis 24 h dugnas X nunulina kas para — be sito irasas dingtu.
+            if e["x_dug"] and e["x_dug"] > float(e.get("x_max") or 0):
+                e["x_max"] = e["x_dug"]
+                e["x_max_ts"] = dabar
         e["mates"] = dabar
         bt = pr.get("baseToken") or {}
         if bt.get("symbol"):
