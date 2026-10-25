@@ -5,7 +5,7 @@
 # Skaito skenerio eksportą (modeliu_skeneris_2026-10-22.js → __MS.EXPORT()), ankstesnę būseną (busena.json),
 # rašo dash/serijos.json, dash/dabar.json, dash/atvejai.json, dash/info.json, dabar.md ir atnaujina busena.json.
 # Spausdina santrauką ir NAUJI: … eilutes (kas atsirado nuo ankstesnio skenavimo). „Nauja" puslapyje — per paskutines 24 val.
-import json, sys, os, datetime as dt
+import json, re, sys, os, datetime as dt
 
 VER = 'skeneris_builder_2026-10-22'
 EXP = sys.argv[1]
@@ -182,6 +182,29 @@ info = {'ver': VER, 'scanT': d['scanT'], 'scan': iso(d['scanT']), 'coins': list(
         'stats': statsOut, 'status': STATUS, 'check': {'sets': len(cmp), 'mismatch': len(bad), 'bad': bad, 'errors': errs}, 'nCases': len(cases), 'nNow': len(now)}
 
 # Puslapio duomenys — eilučių masyvai (Dashboard tipas: JSON = eilučių objektų masyvas; sąrašai — JSON tekstas langelyje).
+# 2026-10-25. Musu paciu modeliai i VIESUS failus nebepatenka: sitas builder'is sukasi
+# GitHub Actions'uose ir kas valanda force-push'ina VISKA i saka skeneris-duomenys, tad
+# kiekvienas failas cia yra viesas (ir dabar.md, ir busena.json, ir zurnalas.txt).
+# 2026-10-24 pataisyta buvo tik scalp-lab kopija, o si kas valanda nutekindavo atgal.
+SLEPTI = {'13A', '13B'}
+# Kandidatu kodai: viesame tekste jie parodo, kuo remiasi musu modelis.
+KODAI1 = re.compile(r'\s*\([^)]*13[AB][^)]*\)')          # visas skliaustas, kuriame minimas 13A/13B
+KODAI2 = re.compile(r'\b(?:F5|S7|G1|P1|B2|V3)\b[^\u2014)]*\u2014\s*')  # „B2 su 2R \u2014 "
+KODAI3 = re.compile(r'\b(?:F5|S7|G1|P1|B2|V3)\b')
+
+
+def viesas_testas(s):
+    s = KODAI3.sub('', KODAI2.sub('', KODAI1.sub('', s or '')))
+    s = re.sub(r'\(\s*\)', '', s)
+    s = re.sub(r'\s{2,}', ' ', s).replace('( ', '(').replace(' )', ')')
+    return s.strip(' ;,')
+
+
+# Isvalom PRIES visas isvestis: taip issivalo ir dabar.json, ir atvejai.json,
+# ir dabar.md, ir busena.json raktai, ir NAUJI: eilutes zurnale.
+now = [x for x in now if x.get('m') not in SLEPTI]
+cases = [x for x in cases if x.get('m') not in SLEPTI]
+
 J = lambda x: json.dumps(x, separators=(',', ':'), ensure_ascii=False)
 GRP = {'atviras': 'atviri', 'naujas_iejimas': 'atviri', 'laukia_limit': 'laukia', 'laukia_retesto': 'laukia', 'laukia_atgavimo': 'laukia',
        'laukia_nusl': 'formuojasi', 'laukia_atsitraukimo': 'formuojasi', 'laukia_aukstumos': 'formuojasi', 'laukia_pramusimo': 'formuojasi', 'naujai_uzbaigtas': 'uzbaigti'}
@@ -203,14 +226,16 @@ rows_cases = [dict({k: v for k, v in c.items() if k != 'lv'}, lv=J(c['lv']), iej
 rows_mod = []
 for k, v in MODELS.items():
     if k == '08': continue
+    if k in SLEPTI: continue
     st_ = statsOut.get(k, {'all': {'n': 0, 'win': 0, 'avgR': None}, 'by': {}})
-    rows_mod.append({'id': k, 'pavadinimas': v[0], 'ka_ziureti': v[1], 'testas': v[2], 'pavadinimas_en': MODELS_EN[k][0], 'ka_ziureti_en': MODELS_EN[k][1], 'testas_en': MODELS_EN[k][2],
+    rows_mod.append({'id': k, 'pavadinimas': v[0], 'ka_ziureti': v[1], 'testas': viesas_testas(v[2]),
+                     'pavadinimas_en': MODELS_EN[k][0], 'ka_ziureti_en': MODELS_EN[k][1], 'testas_en': viesas_testas(MODELS_EN[k][2]),
                      'n': st_['all']['n'], 'laimeta': st_['all']['win'],
                      'laimeta_proc': round(100 * st_['all']['win'] / st_['all']['n']) if st_['all']['n'] else None, 'vid_R': st_['all']['avgR'], 'pagal': J(st_['by'])})
 rows_scan = []
 for c, C in d['coins'].items():
     for tf, S in C['tf'].items():
-        ks = [f'{c}|{tf}|{m}' for m in S['models']]
+        ks = [f'{c}|{tf}|{m}' for m in S['models'] if m not in SLEPTI]
         ok = sum(1 for k_ in ks if k_ in cmp and cmp[k_]['bad'] == 0 and cmp[k_]['n1'] == cmp[k_]['n2'])
         rows_scan.append({'id': f'{c}|{tf}', 'coin': c, 'tf': tf, 'skenuota': iso(d['scanT']), 'iki': iso(S['lastT'] + S['bar']), 'zvakiu': S['n'],
                           'varikliai_sutampa': ok, 'rinkiniu': len(ks), 'atveju': sum(1 for x in cases if x['coin'] == c and x['tf'] == tf)})
@@ -225,6 +250,12 @@ for it in now:
 L += ['', f"Varikliai 1:1: {len(cmp) - len(bad)} / {len(cmp)} rinkinių" + (f"; klaidos: {len(errs)}" if errs else ''), '', 'Ne finansinė rekomendacija.']
 open(os.path.join(BASE, 'dabar.md'), 'w').write('\n'.join(L) + '\n')
 
+# busena.json irgi keliama i viesa saka, o raktai yra COIN|TF|MODELIS|... — isvalom ir juos.
+# (uzb_keys / uzb_pirma sudaromi anksciau uz now/cases filtra, tad jiems reikia atskiro.)
+nesleptas = lambda k: (str(k).split('|') + ['', '', ''])[2] not in SLEPTI  # nezinomo pavidalo rakto neismetam
+uzb_keys = [k for k in uzb_keys if nesleptas(k)]
+uzbPirma = {k: v for k, v in uzbPirma.items() if nesleptas(k)}
+pirma = {k: v for k, v in pirma.items() if nesleptas(k)}
 json.dump({'scanT': d['scanT'], 'lastT': info['lastT'], 'dabar_keys': [x['key'] for x in now], 'pirma': pirma, 'uzb_keys': uzb_keys, 'uzb_pirma': uzbPirma}, open(PREVF, 'w'))
 print(f"skenavimas {iso(d['scanT'])} · atvejų {len(cases)} · dabar {len(now)} · 1:1 {len(cmp) - len(bad)}/{len(cmp)} · klaidų {len(errs)}")
 for it in now:
