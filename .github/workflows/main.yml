@@ -1,8 +1,11 @@
 name: apkasu kolektorius
 
+# 2026-10-31: */5 -> */30 ir 12 -> 28 min. GitHub nuo 10-26 paleisdavo tik 4-6 k./para
+# (ciklai.json: 58 -> 5), 7 min. ciklas nespejo matuoti (eile 3710). Dabar retesni,
+# bet ilgi paleidimai: CIKLO_RIBA 1500 s = ~500 monetu per paleidima.
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -15,7 +18,7 @@ concurrency:
 jobs:
   rinkti:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 28
     steps:
       - name: Kodas
         uses: actions/checkout@v4
@@ -43,8 +46,8 @@ jobs:
       - name: Ciklas
         env:
           APKASAI_DIR: ${{ github.workspace }}/duomenys
+          CIKLO_RIBA: "1500"
         run: python3 -u apkasu_kolektorius.py
-
       - name: Irasom duomenis atgal
         run: |
           cd duomenys
