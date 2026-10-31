@@ -89,18 +89,21 @@ PUMP_SVIEZI = int(os.environ.get("PUMP_SVIEZI", "4"))  # papildomai pagal last_t
 # ateidavo ~45 monetos per valanda, o 15 per paleidima duodavo tik ~36 - eile augo.
 # Dabar kiekvienas paleidimas dirba, kol pasibaigia CIKLO_RIBA, tad retesni paleidimai
 # automatiskai padaro daugiau. Tuscia eile - ciklas baigiasi pats anksciau.
-GT_RIBA    = int(os.environ.get("GT_RIBA", "200"))     # faktiskai neribojam
+GT_RIBA    = int(os.environ.get("GT_RIBA", "600"))     # riba yra laikas (CIKLO_RIBA), ne kiekis
 GT_PAUZE   = float(os.environ.get("GT_PAUZE", "3.0"))  # 20 kvietimu/min (GT riba 30)
 DEX_BATCH  = 25
 TIMEOUT    = float(os.environ.get("TIMEOUT", "10"))
 TRIES      = int(os.environ.get("TRIES", "2"))
-CIKLO_RIBA = float(os.environ.get("CIKLO_RIBA", "420"))  # 7 min.; GitHub darbui duota 12
+CIKLO_RIBA = float(os.environ.get("CIKLO_RIBA", "1500"))  # 25 min.; GitHub darbui duota 28 (main.yml). Buvo 420 iki 2026-10-31:
+                                                          # GitHub nuo 10-26 paleidzia tik 4-6 k./para, 7 min. nespejo (eile 3710)
 DIENU      = 30                     # kiek dienu rodo puslapis
 # RIBA ABSOLIUTI, ne procentas nuo 288. GitHub dazno tvarkarascio nesilaiko:
 # 2026-10-16 per 5 val. ivyko 12 paleidimu (~65 per para), o ne 288. Su sena salyga
 # (>=80% nuo 288) nei viena diena NIEKADA nebutu gavusi balo. 24 = vidutiniskai
 # bent kartas per valanda; maziau reiskia, kad rinkejas buvo sustojes.
-CIKLU_MIN_D = int(os.environ.get("CIKLU_MIN_D", "24"))
+CIKLU_MIN_D = int(os.environ.get("CIKLU_MIN_D", "4"))   # buvo 24. 2026-10-31: GitHub duoda 4-6 paleidimus/para; lango skenas
+                                                        # (offset 1000 = ~24,5 h) graduavimus surenka pilnai ir su 4 ciklais,
+                                                        # o matavimu kieki lemia CIKLO_RIBA, ne ciklu skaicius
 TIEK_SPEJ_H = float(os.environ.get("TIEK_SPEJ_H", "36"))  # po tiek val. matuojam ir be dex tiekimo
 DIENOS_MIN = int(os.environ.get("DIENOS_MIN", "100"))                     # ir tiek graduavimu (tikra diena ~1000)
 SHRINK_K   = 20                     # plonos dienos traukiamos i menesio vidurki
@@ -280,10 +283,15 @@ def dex_busena(mintai):
 # ---------------------------------------------------------------------------
 # 3. TIESA: zvakes
 # ---------------------------------------------------------------------------
-def zvakes(pool, agregatas, limitas):
-    """Grazina [[ts, o, h, l, c, v], ...] senesne pirma. Tik su sandoriais."""
+def zvakes(pool, agregatas, limitas, iki_ts=None):
+    """Grazina [[ts, o, h, l, c, v], ...] senesne pirma. Tik su sandoriais.
+    iki_ts: GeckoTerminal before_timestamp - langas baigiasi ties siuo laiku, ne dabar.
+    Be jo 1000 x 5 min. siekia tik ~83 h atgal, tad senesnes nei 83 h monetos graduavimo
+    lango nebepasiekdavo ir buvo irasomos kaip 0/0 su langas_ok=0 (2026-10-31: eileje 2056 tokiu)."""
     url = ("%s%s/ohlcv/minute?aggregate=%d&limit=%d&currency=usd&token=base"
            % (GT, pool, agregatas, limitas))
+    if iki_ts:
+        url += "&before_timestamp=%d" % int(iki_ts)
     d = gauk_json(url)
     if not d:
         return None
@@ -782,7 +790,7 @@ def ciklas():
             break
         e = busena[m]
         grad_ts = int(is_iso(e["grad_laikas"]).timestamp())
-        zv = zvakes(e["pool"], 5, 1000)                # 1000 x 5 min = iki 83 h
+        zv = zvakes(e["pool"], 5, 1000, grad_ts + int((GYVA_IKI + 1) * 3600))   # langas iki grad+25 h; 1000 x 5 min = 83 h atgal
         gt += 1
         time.sleep(GT_PAUZE)
         if zv is None:
@@ -797,7 +805,7 @@ def ciklas():
             break
         e = busena[m]
         grad_ts = int(is_iso(e["grad_laikas"]).timestamp())
-        zv = zvakes(e["pool"], 15, 1000)               # 1000 x 15 min = iki 250 h
+        zv = zvakes(e["pool"], 15, 1000, grad_ts + 73 * 3600)   # langas iki grad+73 h; 1000 x 15 min = 250 h atgal
         gt += 1
         time.sleep(GT_PAUZE)
         if zv is None:
